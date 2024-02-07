@@ -9,3 +9,69 @@
 if [[ ( "$SHLVL" -eq 1 && ! -o LOGIN ) && -s "${ZDOTDIR:-$HOME}/.zprofile" ]]; then
   source "${ZDOTDIR:-$HOME}/.zprofile"
 fi
+
+
+# Add JDK bin to path
+export PATH="/usr/local/opt/openjdk/bin:$PATH"
+
+# Add Gopath to path
+export PATH="/Users/hodgest/go/bin:$PATH"
+
+# Vim 
+export EDITOR="nvim"
+export VISUAL="nvim"
+alias vim="nvim"
+alias vi="nvim"
+
+# Git aliases
+alias giU="git restore --staged"
+
+# Kubernetes aliases
+alias k="kubectl"
+alias ka="kubeadm"
+
+# Vault setup
+export VAULT_USER="hodgest"
+export VAULT_ADDR="https://civ1.dv.adskengineer.net"
+function vault-aws-creds() {
+  x=$(/usr/local/bin/vault-aws-creds.py --called-from-wrapper "$@");
+  [[ "$?" == "0" ]] && eval "$x";
+}
+function vault-aws-creds-default() {
+  [[ "$1" ]] && export VAULT_LAST_USED_ACCOUNT="$1";
+  eval "vault-aws-creds account/$VAULT_LAST_USED_ACCOUNT Owner";
+}
+function vault-env-set() {
+  export "$1"="$2"
+}
+function sts-chain() {
+    roles=("$@")
+    for role in $roles;
+    do
+        sts_json=$(
+            aws sts assume-role \
+                --role-arn $role\
+                --role-session-name "sts-role-$RANDOM" --output=json
+        )
+        # Create a string using JQ that looks like: "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID ..."
+        export AWS_ACCESS_KEY_ID=$(echo $sts_json | jq -r '.Credentials.AccessKeyId')
+        export AWS_SECRET_ACCESS_KEY=$(echo $sts_json | jq -r '.Credentials.SecretAccessKey')
+        export AWS_SESSION_TOKEN=$(echo $sts_json | jq -r '.Credentials.SessionToken')
+        aws sts get-caller-identity
+    done
+}
+function sts-chain-default() {
+  [[ "$1" ]] && export AWS_STS_ACCOUNT="$1";
+  [[ "$2" ]] && export AWS_STS_ROLE="$2";
+  eval sts-chain arn:aws:iam::"$AWS_STS_ACCOUNT":role/"$AWS_STS_ROLE"
+}
+alias v="vault"
+alias vl="vault login -method=ldap"
+alias veu="vault-env-set VAULT_USER"
+alias vea="vault-env-set VAULT_ADDR"
+alias veA="vault-env-set VAULT_LAST_USED_ACCOUNT"
+alias ver="vault-env-set AWS_DEFAULT_REGION"
+alias vel="env | grep --color=never '^VAULT_'"
+alias vts="vault-aws-creds-default" # vault token set
+alias vtc="sts-chain-default" # vault token chain
+alias vtl="env | grep --color=never '^AWS_'"
